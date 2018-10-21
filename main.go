@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"bufio"
 	"fmt"
-	"./invertedindex"
 	"os"
 	"sort"
 )
@@ -13,9 +13,9 @@ func main() {
 	filenames := os.Args[2:]		//[]string{"ex1.txt", "ex2.txt", "ex3.txt", "ex4.txt"}
 
 	for _, filename := range filenames {
-		strcmap, err := wordsOccurencesInFile(searchingfolder+"/"+filename)
+		words, err := wordsInFile(searchingfolder+"/"+filename)
 		check(err)
-		invertedindex.AttachWordsOccurencesToGlobalMap(filename, strcmap)
+		invertedindex.AttachWordsListToGlobalMap(filename, words)
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -57,8 +57,7 @@ func sortAndPrintResultMap(m map[string]int) {
 	}
 }
 
-//формирует карту вида: слово - раз употреблено в файле
-func wordsOccurencesInFile(path string) (map[string]int, error) {
+func wordsInFile(path string) ([]string, error) {
 	file, err := os.Open(path)
 
 	if err != nil {
@@ -71,11 +70,11 @@ func wordsOccurencesInFile(path string) (map[string]int, error) {
 
 	scanner.Split(bufio.ScanWords)
 
-	m := make(map[string]int)
+	words := make([]string, 0)
 
 	for scanner.Scan() {
-		m[scanner.Text()]++
+		words = append(words, scanner.Text())
 	}
 
-	return m, nil
+	return words, nil
 }
