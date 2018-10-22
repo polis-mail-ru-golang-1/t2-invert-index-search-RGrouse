@@ -2,28 +2,43 @@ package invertedindex
 
 import (
 	"strings"
+	"sync"
 )
+
+type safeIndexMap struct {
+	sync.RWMutex
+	//карта вида: слово - массив из записей {источник, сколько раз слово употреблено в источнике}
+	indexmap map[string][]entry
+}
 
 type entry struct {
 	source string
 	occurrence  int
 }
 
-//карта вида: слово - массив из записей {источник, сколько раз слово употреблено в источнике}
-var globalindexmap map[string][]entry
+var gSafeIndexMap *safeIndexMap
 
 func init() {
-	globalindexmap = make(map[string][]entry)
+	newSafeIndexMap()
+}
+
+func newSafeIndexMap() {
+	gSafeIndexMap = &safeIndexMap {
+		indexmap : make(map[string][]entry),
+	}
 }
 
 func AttachWordsOccurencesToGlobalMap(source string, strcmap map[string]int){
+	gSafeIndexMap.Lock()
+	defer gSafeIndexMap.Unlock()
+
 	for str, c := range strcmap {
-		entries, present := globalindexmap[str]
+		entries, present := gSafeIndexMap.indexmap[str]
 		if !present {
 			entries = make([]entry, 0)
 		}
 		entries = append(entries, entry{source, c})
-		globalindexmap[str] = entries
+		gSafeIndexMap.indexmap[str] = entries
 	}
 }
 
@@ -45,8 +60,11 @@ func SearchByString(str string) map[string]int {
 func SearchByWords(words []string) map[string]int {
 	resultmap := make(map[string]int)
 
+	gSafeIndexMap.RLock()
+	defer gSafeIndexMap.RUnlock()
+
 	for _, word := range words {
-		entries, present := globalindexmap[word]
+		entries, present := gSafeIndexMap.indexmap[word]
 		if !present {
 			continue
 		}

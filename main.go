@@ -1,28 +1,38 @@
 package main
 
 import (
-	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"bufio"
 	"fmt"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"os"
 	"sort"
+	"strings"
+	"sync"
 )
 
 func main() {
 	searchingfolder := os.Args[1] 	//"./search"
 	filenames := os.Args[2:]		//[]string{"ex1.txt", "ex2.txt", "ex3.txt", "ex4.txt"}
 
+	wg := new(sync.WaitGroup)		//создаем wait группу и делаем считывание и подсчет слов в отдельных горутинах для каждого файла
 	for _, filename := range filenames {
-		words, err := wordsInFile(searchingfolder+"/"+filename)
-		check(err)
-		invertedindex.AttachWordsListToGlobalMap(filename, words)
+		wg.Add(1)
+
+		go func(fname string) {
+			defer wg.Done()
+
+			words, err := wordsInFile(searchingfolder + "/" + fname)
+			check(err)
+			invertedindex.AttachWordsListToGlobalMap(fname, words)
+
+		}(filename)
 	}
+	wg.Wait()	//ждем пока все файлы проиндексируются
 
 	scanner := bufio.NewScanner(os.Stdin)
-
 	fmt.Print("Поисковая фраза: ")
 	for scanner.Scan() {
-		str := scanner.Text()
+		str := strings.ToLower(scanner.Text())
 
 		resultmap := invertedindex.SearchByString(str)
 		if len(resultmap)>0 {
@@ -67,14 +77,10 @@ func wordsInFile(path string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-
 	scanner.Split(bufio.ScanWords)
-
 	words := make([]string, 0)
-
 	for scanner.Scan() {
-		words = append(words, scanner.Text())
+		words = append(words, strings.ToLower(scanner.Text()))
 	}
-
 	return words, nil
 }
