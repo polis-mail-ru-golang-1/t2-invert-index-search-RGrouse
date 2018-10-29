@@ -14,17 +14,25 @@ func main() {
 	searchingfolder := os.Args[1] 	//"./search"
 	filenames := os.Args[2:]		//[]string{"ex1.txt", "ex2.txt", "ex3.txt", "ex4.txt"}
 
-	wg := new(sync.WaitGroup)		//создаем wait группу и делаем считывание и подсчет слов в отдельных горутинах для каждого файла
+	ch := make(chan invertedindex.WordsEntry)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		invertedindex.AttachCountedWordsFromChannel(ch, len(filenames))				//слушаем канал и добавляем в общий индекс посчитанные слова
+		wg.Done()
+	}()
+
 	for _, filename := range filenames {
 		wg.Add(1)
 
 		go func(fname string) {
 			defer wg.Done()
 
-			words, err := wordsInFile(searchingfolder + "/" + fname)
+			words, err := wordsInFile(searchingfolder + "/" + fname)				//разбиваем файл по словам
 			check(err)
-			invertedindex.AttachWordsListToGlobalMap(fname, words)
-
+			countedWords := invertedindex.CountWords(words)							//считаем, сколько раз слово появилось в файле
+			ch<-invertedindex.WordsEntry{fname, *countedWords}	//пишем в канал источник и карту посчитанных слов
 		}(filename)
 	}
 	wg.Wait()	//ждем пока все файлы проиндексируются
