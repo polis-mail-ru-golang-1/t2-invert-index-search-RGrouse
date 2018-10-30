@@ -4,52 +4,35 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 )
 
-func main() {
-	searchingfolder := os.Args[1] 	//"./search"
-	filenames := os.Args[2:]		//[]string{"ex1.txt", "ex2.txt", "ex3.txt", "ex4.txt"}
-
-	ch := make(chan invertedindex.WordsEntry)
-
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		invertedindex.AttachCountedWordsFromChannel(ch, len(filenames))				//слушаем канал и добавляем в общий индекс посчитанные слова
-		wg.Done()
-	}()
-
-	for _, filename := range filenames {
-		wg.Add(1)
-
-		go func(fname string) {
-			defer wg.Done()
-
-			words, err := wordsInFile(searchingfolder + "/" + fname)				//разбиваем файл по словам
-			check(err)
-			countedWords := invertedindex.CountWords(words)							//считаем, сколько раз слово появилось в файле
-			ch<-invertedindex.WordsEntry{fname, *countedWords}	//пишем в канал источник и карту посчитанных слов
-		}(filename)
-	}
-	wg.Wait()	//ждем пока все файлы проиндексируются
-
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("Поисковая фраза: ")
-	for scanner.Scan() {
-		str := strings.ToLower(scanner.Text())
-
-		resultmap := invertedindex.SearchByString(str)
+func handler(w http.ResponseWriter, r *http.Request) {
+	query := r.FormValue("q")
+	if query != "" {
+		q := strings.ToLower(query)
+		resultmap := invertedindex.SearchByString(q)
 		if len(resultmap)>0 {
-			sortAndPrintResultMap(resultmap)
+			sortAndPrintResultMap(resultmap, w)
 		}
-
-		fmt.Print("\nПоисковая фраза: ")
 	}
-	check(scanner.Err())
+}
+
+func main() {
+	http.HandleFunc("/search", handler)
+
+	searchingfolder := os.Args[1] 	//"./search"
+	interfaceAddr := os.Args[2]		//"127.0.0.1:8080"
+
+	indexFilesInFolder(searchingfolder)
+
+	check(http.ListenAndServe(interfaceAddr, nil))
 }
 
 func check(err error) {
@@ -58,7 +41,7 @@ func check(err error) {
 	}
 }
 
-func sortAndPrintResultMap(m map[string]int) {
+func sortAndPrintResultMap(m map[string]int, w io.Writer) {
 	n := map[int][]string{}
 	var a []int
 	for k, v := range m {
@@ -70,9 +53,39 @@ func sortAndPrintResultMap(m map[string]int) {
 	sort.Sort(sort.Reverse(sort.IntSlice(a)))
 	for _, k := range a {
 		for _, s := range n[k] {
-			fmt.Printf("- %s; совпадений - %d\n", s, k)
+			fmt.Fprintf(w, "- %s; совпадений - %d\n", s, k)
 		}
 	}
+}
+
+func indexFilesInFolder(searchingfolder string) {
+	filesInfos, err := ioutil.ReadDir(searchingfolder)
+	check(err)
+
+	ch := make(chan invertedindex.WordsEntry)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		invertedindex.AttachCountedWordsFromChannel(ch, len(filesInfos))	//слушаем канал и добавляем в общий индекс посчитанные слова
+		wg.Done()
+	}()
+
+	for _, fileInfo := range filesInfos {
+		wg.Add(1)
+
+		go func(f os.FileInfo) {
+			defer wg.Done()
+
+			if (!f.IsDir()) {
+				words, err := wordsInFile(searchingfolder + "/" + f.Name()) //разбиваем файл по словам
+				check(err)
+				countedWords := invertedindex.CountWords(words)      //считаем, сколько раз слово появилось в файле
+				ch <- invertedindex.WordsEntry{f.Name(), *countedWords} //пишем в канал источник и карту посчитанных слов
+			}
+		}(fileInfo)
+	}
+	wg.Wait()	//ждем пока все файлы проиндексируются
 }
 
 func wordsInFile(path string) ([]string, error) {
