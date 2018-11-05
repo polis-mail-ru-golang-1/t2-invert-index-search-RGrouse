@@ -4,9 +4,9 @@ import (
 	"strings"
 )
 
-type entry struct {
-	source string
-	occurrence  int
+type IndexEntry struct {
+	Source     string
+	Occurrence int
 }
 type WordsEntry struct {
 	Source       string
@@ -14,14 +14,18 @@ type WordsEntry struct {
 }
 
 //карта вида: слово - массив из записей {источник, сколько раз слово употреблено в источнике}
-var gindexmap map[string][]entry
+var gindexmap map[string][]IndexEntry
 
 func init() {
 	NewIndexMap()
 }
 
+func GetIndexMap() map[string][]IndexEntry {
+	return gindexmap
+}
+
 func NewIndexMap() {
-	gindexmap = make(map[string][]entry)
+	gindexmap = make(map[string][]IndexEntry)
 }
 
 func AttachCountedWordsFromChannel(ch chan WordsEntry, k int){
@@ -35,9 +39,9 @@ func attachWordsOccurencesToGlobalMap(source string, strcmap map[string]int){
 	for str, c := range strcmap {
 		entries, present := gindexmap[str]
 		if !present {
-			entries = make([]entry, 0)
+			entries = make([]IndexEntry, 0)
 		}
-		entries = append(entries, entry{source, c})
+		entries = append(entries, IndexEntry{source, c})
 		gindexmap[str] = entries
 	}
 }
@@ -67,7 +71,7 @@ func SearchByWords(words []string) map[string]int {
 		}
 
 		for _, entry := range entries {
-			resultmap[entry.source]+=entry.occurrence
+			resultmap[entry.Source]+=entry.Occurrence
 		}
 	}
 	return resultmap
