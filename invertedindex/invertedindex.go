@@ -1,6 +1,9 @@
 package invertedindex
 
 import (
+	"fmt"
+	"io"
+	"sort"
 	"strings"
 )
 
@@ -18,10 +21,6 @@ var gindexmap map[string][]IndexEntry
 
 func init() {
 	NewIndexMap()
-}
-
-func GetIndexMap() map[string][]IndexEntry {
-	return gindexmap
 }
 
 func NewIndexMap() {
@@ -75,4 +74,21 @@ func SearchByWords(words []string) map[string]int {
 		}
 	}
 	return resultmap
+}
+
+func SortAndPrintResult(m map[string]int, w io.Writer) {
+	n := map[int][]string{}
+	var a []int
+	for k, v := range m {
+		n[v] = append(n[v], k)
+	}
+	for k := range n {
+		a = append(a, k)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(a)))
+	for _, k := range a {
+		for _, s := range n[k] {
+			fmt.Fprintf(w, "- %s; совпадений - %d\n", s, k)
+		}
+	}
 }

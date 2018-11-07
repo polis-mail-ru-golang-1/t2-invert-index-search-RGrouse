@@ -2,59 +2,26 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
-	"io"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/web"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	query := r.FormValue("q")
-	if query != "" {
-		q := strings.ToLower(query)
-		resultmap := invertedindex.SearchByString(q)
-		if len(resultmap)>0 {
-			sortAndPrintResultMap(resultmap, w)
-		}
-	}
-}
-
 func main() {
-	http.HandleFunc("/search", handler)
-
-	searchingfolder := os.Args[1] 	//"./search"
-	interfaceAddr := os.Args[2]		//"127.0.0.1:8080"
+	searchingfolder := os.Getenv("SDIR") //"./search"
+	interfaceAddr := os.Getenv("ADDR")	//"127.0.0.1:8080"
 
 	indexFilesInFolder(searchingfolder)
 
-	check(http.ListenAndServe(interfaceAddr, nil))
+	check(web.Start(interfaceAddr))
 }
 
 func check(err error) {
 	if err != nil {
 		panic(err)
-	}
-}
-
-func sortAndPrintResultMap(m map[string]int, w io.Writer) {
-	n := map[int][]string{}
-	var a []int
-	for k, v := range m {
-		n[v] = append(n[v], k)
-	}
-	for k := range n {
-		a = append(a, k)
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(a)))
-	for _, k := range a {
-		for _, s := range n[k] {
-			fmt.Fprintf(w, "- %s; совпадений - %d\n", s, k)
-		}
 	}
 }
 
