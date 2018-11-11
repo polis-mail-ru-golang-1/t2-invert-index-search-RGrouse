@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"html/template"
@@ -13,7 +12,12 @@ import (
 
 type SearchResult struct {
 	Query string
-	Result []string
+	Result []invertedindex.SearchResultEntry
+}
+
+type Web struct {
+	Address string
+	Index invertedindex.InvertedIndex
 }
 
 var searchTmpl, resultTmpl *template.Template
@@ -37,17 +41,12 @@ func init(){
 	resultTmpl = templates.Lookup("result")
 }
 
-func searchHandler(w http.ResponseWriter, r *http.Request) {
+func (web *Web) searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.FormValue("q")
 	if query != "" {
 		q := strings.ToLower(query)
 
-		resultmap := invertedindex.SearchByString(q)
-
-		buf := new(bytes.Buffer)
-		invertedindex.SortAndPrintResult(resultmap, buf)
-
-		result := strings.Split(buf.String(), "\n")
+		result := web.Index.SearchByString(q)
 
 		resultTmpl.Execute(w, SearchResult{ Query:q, Result:result})
 	} else {
@@ -55,17 +54,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Start(address string) error {
+func (web *Web) Start() error {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/search", searchHandler)
+	mux.HandleFunc("/search", web.searchHandler)
 	mux.Handle("/res/", http.StripPrefix(
 		"/res/",
 		http.FileServer(http.Dir("./static")),
 	))
-	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./static/icons/favicon.ico")
-	})
 	mux.HandleFunc("/main", func(w http.ResponseWriter, r *http.Request) {
 		searchTmpl.Execute(w, nil)
 	})
@@ -74,7 +70,7 @@ func Start(address string) error {
 	})
 
 	server := http.Server{
-		Addr:         address,
+		Addr:         web.Address,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

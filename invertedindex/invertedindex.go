@@ -1,97 +1,73 @@
 package invertedindex
 
 import (
-	"fmt"
 	"github.com/rs/zerolog/log"
-	"io"
 	"sort"
 	"strings"
 )
 
 type IndexEntry struct {
-	Source     string
-	Occurrence int
-}
-type WordsEntry struct {
-	Source       string
-	CountedWords map[string]int
+	Source string
+	Weight int
 }
 
-//карта вида: слово - массив из записей {источник, сколько раз слово употреблено в источнике}
-var gindexmap map[string][]IndexEntry
-
-func init() {
-	NewIndexMap()
+type SearchResultEntry struct {
+	Source 	string
+	Score 	int
 }
 
-func NewIndexMap() {
-	gindexmap = make(map[string][]IndexEntry)
+type InvertedIndex struct {
+	//карта вида: слово - массив из записей {источник, вес}
+	indexmap map[string][]IndexEntry
 }
 
-func AttachCountedWordsFromChannel(ch chan WordsEntry, k int){
-	for i := 0; i<k; i++ {
-		wordsEntry := <- ch
-		attachWordsOccurencesToGlobalMap(wordsEntry.Source, wordsEntry.CountedWords)
-		log.Info().Msg("Добавили в индекс посчитанные слова из файла "+wordsEntry.Source)
-	}
+func New() InvertedIndex {
+	return InvertedIndex{ indexmap: make(map[string][]IndexEntry,0) }
 }
 
-func attachWordsOccurencesToGlobalMap(source string, strcmap map[string]int){
-	for str, c := range strcmap {
-		entries, present := gindexmap[str]
+func (ii *InvertedIndex) AttachWeightedWords(source string, weightedWords map[string]int){
+	for str, w := range weightedWords {
+		entries, present := ii.indexmap[str]
 		if !present {
 			entries = make([]IndexEntry, 0)
 		}
-		entries = append(entries, IndexEntry{source, c})
-		gindexmap[str] = entries
+		entries = append(entries, IndexEntry{source, w})
+		ii.indexmap[str] = entries
 	}
+	log.Info().Msg("Добавили в индекс слова из файла "+source)
 }
 
-func CountWords(words []string) *map[string]int {
-	m := make(map[string]int)
-
-	for _, word := range words {
-		m[word]++
-	}
-
-	return &m
-}
-
-func SearchByString(str string) map[string]int {
+func (ii *InvertedIndex) SearchByString(str string) []SearchResultEntry {
 	words := strings.Split(str, " ")
-	return SearchByWords(words)
+	return ii.SearchByWords(words)
 }
 
-func SearchByWords(words []string) map[string]int {
+func (ii *InvertedIndex) SearchByWords(words []string) []SearchResultEntry {
 	resultmap := make(map[string]int)
 
 	for _, word := range words {
-		entries, present := gindexmap[word]
+		entries, present := ii.indexmap[word]
 		if !present {
 			continue
 		}
 
 		for _, entry := range entries {
-			resultmap[entry.Source]+=entry.Occurrence
+			resultmap[entry.Source]+=entry.Weight
 		}
 	}
-	log.Info().Msg("Поиск по строке "+strings.Join(words, " "))
-	return resultmap
+	log.Info().Msgf("Поиск по строке %v", words)
+	return sortResult(resultmap)
 }
 
-func SortAndPrintResult(m map[string]int, w io.Writer) {
-	n := map[int][]string{}
-	var a []int
-	for k, v := range m {
-		n[v] = append(n[v], k)
+func sortResult(m map[string]int) []SearchResultEntry {
+	searchResult := []SearchResultEntry{}
+	for s, w := range m {
+		searchResult = append(searchResult, SearchResultEntry{s, w})
 	}
-	for k := range n {
-		a = append(a, k)
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(a)))
-	for _, k := range a {
-		for _, s := range n[k] {
-			fmt.Fprintf(w, "- %s; совпадений - %d\n", s, k)
-		}
-	}
+
+	sort.Slice(searchResult, func(i, j int) bool {
+		return searchResult[i].Score < searchResult[j].Score
+	})
+
+	return searchResult
 }
