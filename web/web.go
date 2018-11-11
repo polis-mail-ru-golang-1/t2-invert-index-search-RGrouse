@@ -2,23 +2,39 @@ package web
 
 import (
 	"bytes"
+	"fmt"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"html/template"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
-	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 )
 
 type SearchResult struct {
 	Query string
-	Result template.HTML
+	Result []string
 }
 
 var searchTmpl, resultTmpl *template.Template
 
 func init(){
-	searchTmpl = template.Must(template.ParseFiles("./templates/search.html"))
-	resultTmpl = template.Must(template.ParseFiles("./templates/result.html"))
+	var allFiles []string
+	files, err := ioutil.ReadDir("./templates")
+	if err != nil {
+		fmt.Println(err)
+	}
+	for _, file := range files {
+		filename := file.Name()
+		if strings.HasSuffix(filename, ".tmpl") {
+			allFiles = append(allFiles, "./templates/"+filename)
+		}
+	}
+
+	templates, err := template.ParseFiles(allFiles...)
+
+	searchTmpl = templates.Lookup("search")
+	resultTmpl = templates.Lookup("result")
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,9 +47,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
 		invertedindex.SortAndPrintResult(resultmap, buf)
 
-		result := strings.Replace(buf.String(), "\n", "<br>", -1)
+		result := strings.Split(buf.String(), "\n")
 
-		resultTmpl.Execute(w, SearchResult{ Query:q, Result:template.HTML(result)})
+		resultTmpl.Execute(w, SearchResult{ Query:q, Result:result})
 	} else {
 		http.Redirect(w, r, "/main", 301)
 	}
@@ -47,7 +63,9 @@ func Start(address string) error {
 		"/res/",
 		http.FileServer(http.Dir("./static")),
 	))
-
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./static/icons/favicon.ico")
+	})
 	mux.HandleFunc("/main", func(w http.ResponseWriter, r *http.Request) {
 		searchTmpl.Execute(w, nil)
 	})

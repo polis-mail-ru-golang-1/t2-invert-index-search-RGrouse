@@ -2,6 +2,7 @@ package invertedindex
 
 import (
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"io"
 	"sort"
 	"strings"
@@ -31,6 +32,7 @@ func AttachCountedWordsFromChannel(ch chan WordsEntry, k int){
 	for i := 0; i<k; i++ {
 		wordsEntry := <- ch
 		attachWordsOccurencesToGlobalMap(wordsEntry.Source, wordsEntry.CountedWords)
+		log.Info().Msg("Добавили в индекс посчитанные слова из файла "+wordsEntry.Source)
 	}
 }
 
@@ -73,6 +75,7 @@ func SearchByWords(words []string) map[string]int {
 			resultmap[entry.Source]+=entry.Occurrence
 		}
 	}
+	log.Info().Msg("Поиск по строке "+strings.Join(words, " "))
 	return resultmap
 }
 

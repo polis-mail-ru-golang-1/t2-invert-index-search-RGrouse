@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/web"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/config"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -11,12 +14,20 @@ import (
 )
 
 func main() {
-	searchingfolder := os.Getenv("SDIR") //"./search"
-	interfaceAddr := os.Getenv("ADDR")	//"127.0.0.1:8080"
+	cfg, err := config.Load()
+	check(err)
 
-	indexFilesInFolder(searchingfolder)
+	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	check(err)
 
-	check(web.Start(interfaceAddr))
+	zerolog.MessageFieldName = "msg"
+	log.Level(level)
+
+	log.Print(cfg)
+
+	indexFilesInFolder(cfg.SearchingFolder)
+
+	check(web.Start(cfg.Listen))
 }
 
 func check(err error) {
