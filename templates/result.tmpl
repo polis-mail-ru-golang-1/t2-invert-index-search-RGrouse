@@ -4,7 +4,7 @@
                 <input type="text" name="q" placeholder="Search.." value={{ .Query }}>
             </form>
             {{ range .Result }}
-                <p>{{ . }}</p>
+                <p>- {{ .Source }}; совпадений - {{ .Score }}</p>
             {{ end }}
     {{ template "footer" }}
 {{ end }}

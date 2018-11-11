@@ -66,7 +66,7 @@ func sortResult(m map[string]int) []SearchResultEntry {
 	}
 
 	sort.Slice(searchResult, func(i, j int) bool {
-		return searchResult[i].Score < searchResult[j].Score
+		return searchResult[i].Score > searchResult[j].Score
 	})
 
 	return searchResult
