@@ -2,37 +2,34 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
-	"io"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/web"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/config"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	query := r.FormValue("q")
-	if query != "" {
-		q := strings.ToLower(query)
-		resultmap := invertedindex.SearchByString(q)
-		if len(resultmap)>0 {
-			sortAndPrintResultMap(resultmap, w)
-		}
-	}
-}
-
 func main() {
-	http.HandleFunc("/search", handler)
+	cfg, err := config.Load()
+	check(err)
 
-	searchingfolder := os.Args[1] 	//"./search"
-	interfaceAddr := os.Args[2]		//"127.0.0.1:8080"
+	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	check(err)
+	zerolog.MessageFieldName = "msg"
+	log.Level(level)
 
-	indexFilesInFolder(searchingfolder)
+	log.Print(cfg)
 
-	check(http.ListenAndServe(interfaceAddr, nil))
+	invIndex := invertedindex.New()
+
+	indexFilesInFolder(cfg.SearchingFolder, invIndex)
+
+	web := web.Web{cfg.Listen, invIndex}
+	check(web.Start())
 }
 
 func check(err error) {
@@ -41,33 +38,23 @@ func check(err error) {
 	}
 }
 
-func sortAndPrintResultMap(m map[string]int, w io.Writer) {
-	n := map[int][]string{}
-	var a []int
-	for k, v := range m {
-		n[v] = append(n[v], k)
-	}
-	for k := range n {
-		a = append(a, k)
-	}
-	sort.Sort(sort.Reverse(sort.IntSlice(a)))
-	for _, k := range a {
-		for _, s := range n[k] {
-			fmt.Fprintf(w, "- %s; совпадений - %d\n", s, k)
-		}
-	}
-}
-
-func indexFilesInFolder(searchingfolder string) {
+func indexFilesInFolder(searchingfolder string, ii invertedindex.InvertedIndex) {
 	filesInfos, err := ioutil.ReadDir(searchingfolder)
 	check(err)
 
-	ch := make(chan invertedindex.WordsEntry)
+	type fileWordsEntry struct {
+		Source string
+		CountedWords map[string]int
+	}
+	ch := make(chan fileWordsEntry)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
-		invertedindex.AttachCountedWordsFromChannel(ch, len(filesInfos))	//слушаем канал и добавляем в общий индекс посчитанные слова
+		for i:=0; i<len(filesInfos); i++ {
+			fileWordsEntry := <-ch
+			ii.AttachWeightedWords(fileWordsEntry.Source, fileWordsEntry.CountedWords) //слушаем канал и добавляем в общий индекс посчитанные слова
+		}
 		wg.Done()
 	}()
 
@@ -80,8 +67,8 @@ func indexFilesInFolder(searchingfolder string) {
 			if (!f.IsDir()) {
 				words, err := wordsInFile(searchingfolder + "/" + f.Name()) //разбиваем файл по словам
 				check(err)
-				countedWords := invertedindex.CountWords(words)      //считаем, сколько раз слово появилось в файле
-				ch <- invertedindex.WordsEntry{f.Name(), *countedWords} //пишем в канал источник и карту посчитанных слов
+				countedWords := countWords(words)      //считаем, сколько раз слово появилось в файле
+				ch <- fileWordsEntry{f.Name(), *countedWords} //пишем в канал источник и карту посчитанных слов
 			}
 		}(fileInfo)
 	}
@@ -104,4 +91,14 @@ func wordsInFile(path string) ([]string, error) {
 		words = append(words, strings.ToLower(scanner.Text()))
 	}
 	return words, nil
+}
+
+func countWords(words []string) *map[string]int {
+	m := make(map[string]int)
+
+	for _, word := range words {
+		m[word]++
+	}
+
+	return &m
 }
