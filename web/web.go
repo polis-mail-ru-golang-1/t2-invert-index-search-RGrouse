@@ -28,7 +28,7 @@ func (web *Web) Start() error {
 	mux.HandleFunc("/", web.controller.DefaultHandler)
 	mux.Handle("/res/", http.StripPrefix(
 		"/res/",
-		http.FileServer(http.Dir("./static")),
+		http.FileServer(http.Dir("./view/static")),
 	))
 
 	server := http.Server{

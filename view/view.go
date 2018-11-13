@@ -19,14 +19,14 @@ func New() (View, error) {
 	v := View{}
 
 	var allFiles []string
-	files, err := ioutil.ReadDir("./templates")
+	files, err := ioutil.ReadDir("./view/templates")
 	if err != nil {
 		return v, err
 	}
 	for _, file := range files {
 		filename := file.Name()
 		if strings.HasSuffix(filename, ".tmpl") {
-			allFiles = append(allFiles, "./templates/"+filename)
+			allFiles = append(allFiles, "./view/templates/"+filename)
 		}
 	}
 
@@ -34,10 +34,11 @@ func New() (View, error) {
 	if err != nil {
 		return v, err
 	}
+
 	v.searchTmpl = templates.Lookup("search")
 	v.resultTmpl = templates.Lookup("result")
 	v.errorTmpl = templates.Lookup("error")
-	v.addTmpl = templates.Lookup("addToIndex")
+	v.addTmpl = templates.Lookup("add")
 
 	return v, nil
 }
@@ -60,12 +61,14 @@ func (v View) Search(wr io.Writer) error {
 func (v View) AddToIndex(wr io.Writer) error {
 	return v.addTmpl.Execute(wr, nil)
 }
-func (v View) AddToIndexPopup(isAdded bool, wr io.Writer) error {
+func (v View) AddToIndexPopup(isAdded bool, message string, wr io.Writer) error {
 	return v.addTmpl.Execute(wr,
 		struct {
 			IsAdded bool
+			Message string
 		}{
 			IsAdded: isAdded,
+			Message: message,
 		})
 }
 

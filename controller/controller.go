@@ -24,6 +24,7 @@ func New(v view.View, m interfaces.InvertedIndexModel) Controller {
 func (c Controller) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	c.checkTemplateExec(c.view.Search(w), w, r)
 }
+
 func (c Controller) SearchResultHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.FormValue("q")
 	if query != "" {
@@ -54,7 +55,11 @@ func (c Controller) AddToIndexHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		text := r.FormValue("text")
 		source := r.FormValue("source")
-		if (text!="" && source!=""){
+		if (text==""){
+			c.checkTemplateExec(c.view.AddToIndexPopup(false,"Текст не должен быть пустым", w), w, r)
+		} else if (source==""){
+			c.checkTemplateExec(c.view.AddToIndexPopup(false,"Название источника не должно быть пустым", w), w, r)
+		} else {
 			strs := strings.Split(text, " ")
 			weighted := interfaces.CountWords(strs)
 			err := c.model.AttachWeightedWords(source, weighted)
@@ -62,11 +67,7 @@ func (c Controller) AddToIndexHandler(w http.ResponseWriter, r *http.Request) {
 				c.error(w,r,"Ошибка при добавлении", 500)
 				return
 			}
-			c.checkTemplateExec(c.view.AddToIndexPopup(true, w), w, r)
-		} else {
-			//log.Error().Msgf("Неподходящая форма от пользователя")
-			//c.error(w,r,"Неподходящая форма",400)
-			c.checkTemplateExec(c.view.AddToIndexPopup(false, w), w, r)
+			c.checkTemplateExec(c.view.AddToIndexPopup(true, "Все слова успешно добавлены :-)", w), w, r)
 		}
 	}
 }
