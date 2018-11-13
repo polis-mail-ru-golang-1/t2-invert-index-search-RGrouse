@@ -2,9 +2,14 @@ package main
 
 import (
 	"bufio"
-	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/invertedindex"
-	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/web"
+	"github.com/go-pg/pg"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/config"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/controller"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/db_model"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/interfaces"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/map_model"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/view"
+	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/web"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"io/ioutil"
@@ -15,32 +20,45 @@ import (
 
 func main() {
 	cfg, err := config.Load()
-	check(err)
+	die(err)
 
 	level, err := zerolog.ParseLevel(cfg.LogLevel)
-	check(err)
+	die(err)
 	zerolog.MessageFieldName = "msg"
 	log.Level(level)
 
 	log.Print(cfg)
 
-	invIndex := invertedindex.New()
+	var m interfaces.InvertedIndexModel
 
-	indexFilesInFolder(cfg.SearchingFolder, invIndex)
-
-	web := web.Web{cfg.Listen, invIndex}
-	check(web.Start())
-}
-
-func check(err error) {
-	if err != nil {
-		panic(err)
+	switch cfg.ModelType {
+	case "MAP":
+		m = map_model.New()
+	case "DB":
+		pgOpt, err := pg.ParseURL(cfg.PgSQL)
+		die(err)
+		pgdb := pg.Connect(pgOpt)
+		m = db_model.New(pgdb)
+	default:
+		panic("Неправильный параметр MODEL")
 	}
+
+	indexFilesInFolder(cfg.SearchingFolder, m)
+
+	v, err := view.New()
+	die(err)
+
+	c := controller.New(v, m)
+
+	webServer := web.New(cfg.Listen, c)
+	die(webServer.Start())
 }
 
-func indexFilesInFolder(searchingfolder string, ii invertedindex.InvertedIndex) {
+func indexFilesInFolder(searchingfolder string, iim interfaces.InvertedIndexModel) {
+	log.Info().Msg("Индексируем файлы из директории "+searchingfolder)
+
 	filesInfos, err := ioutil.ReadDir(searchingfolder)
-	check(err)
+	die(err)
 
 	type fileWordsEntry struct {
 		Source string
@@ -53,7 +71,8 @@ func indexFilesInFolder(searchingfolder string, ii invertedindex.InvertedIndex) 
 	go func() {
 		for i:=0; i<len(filesInfos); i++ {
 			fileWordsEntry := <-ch
-			ii.AttachWeightedWords(fileWordsEntry.Source, fileWordsEntry.CountedWords) //слушаем канал и добавляем в общий индекс посчитанные слова
+			err := iim.AttachWeightedWords(fileWordsEntry.Source, fileWordsEntry.CountedWords) //слушаем канал и добавляем в общий индекс посчитанные слова
+			die(err)
 		}
 		wg.Done()
 	}()
@@ -66,13 +85,14 @@ func indexFilesInFolder(searchingfolder string, ii invertedindex.InvertedIndex) 
 
 			if (!f.IsDir()) {
 				words, err := wordsInFile(searchingfolder + "/" + f.Name()) //разбиваем файл по словам
-				check(err)
-				countedWords := countWords(words)      //считаем, сколько раз слово появилось в файле
-				ch <- fileWordsEntry{f.Name(), *countedWords} //пишем в канал источник и карту посчитанных слов
+				die(err)
+				countedWords := interfaces.CountWords(words)      //считаем, сколько раз слово появилось в файле
+				ch <- fileWordsEntry{f.Name(), countedWords} //пишем в канал источник и карту посчитанных слов
 			}
 		}(fileInfo)
 	}
 	wg.Wait()	//ждем пока все файлы проиндексируются
+	log.Info().Msg("Закончили индексирование")
 }
 
 func wordsInFile(path string) ([]string, error) {
@@ -93,12 +113,8 @@ func wordsInFile(path string) ([]string, error) {
 	return words, nil
 }
 
-func countWords(words []string) *map[string]int {
-	m := make(map[string]int)
-
-	for _, word := range words {
-		m[word]++
+func die(err error) {
+	if err != nil {
+		panic(err)
 	}
-
-	return &m
 }

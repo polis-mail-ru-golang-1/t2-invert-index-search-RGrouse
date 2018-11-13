@@ -3,7 +3,9 @@
     <html>
     <head>
         <link rel="icon" href="/res/icons/favicon.ico" type="image/x-icon"/ >
-        <link rel="stylesheet" href={{ . }}>
+        {{ if . }}
+            <link rel="stylesheet" href={{ . }}>
+        {{ end }}
     </head>
     <body>
 {{ end }}
