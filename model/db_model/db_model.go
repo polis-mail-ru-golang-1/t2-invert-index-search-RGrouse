@@ -4,7 +4,6 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/interfaces"
 	"github.com/rs/zerolog/log"
-	"strings"
 )
 
 type DBModel struct {
@@ -59,11 +58,15 @@ func (m DBModel) AttachWeightedWords(src string, weightedWords map[string]int) e
 }
 
 func (m DBModel) SearchByString(str string) ([]interfaces.SearchResultEntry, error) {
-	words := strings.Split(str, " ")
+	words := interfaces.WordsInString(str)
 	return m.SearchByWords(words)
 }
 
 func (m DBModel) SearchByWords(words []string) ([]interfaces.SearchResultEntry, error) {
+	for i, _ := range words {
+		words[i] = interfaces.StemWord(words[i])
+	}
+
 	matchedWordsId := m.pg.Model().
 		Column("words.id").
 		Table("words").

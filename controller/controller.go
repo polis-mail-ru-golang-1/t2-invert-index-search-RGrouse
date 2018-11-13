@@ -28,14 +28,12 @@ func (c Controller) SearchHandler(w http.ResponseWriter, r *http.Request) {
 func (c Controller) SearchResultHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.FormValue("q")
 	if query != "" {
-		q := strings.ToLower(query)
-
-		result, err := c.model.SearchByString(q)
+		result, err := c.model.SearchByString(query)
 		if err!=nil{
 			c.error(w, r, "Ошибка при поиске", 500)
 			return
 		}
-		c.checkTemplateExec(c.view.SearchResult(q, result, w), w, r)
+		c.checkTemplateExec(c.view.SearchResult(query, result, w), w, r)
 	} else {
 		http.Redirect(w, r, "/main", 301)
 	}

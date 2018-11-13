@@ -14,7 +14,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"io/ioutil"
 	"os"
-	"strings"
 	"sync"
 )
 
@@ -64,12 +63,20 @@ func indexFilesInFolder(searchingfolder string, iim interfaces.InvertedIndexMode
 		Source string
 		CountedWords map[string]int
 	}
+
+	var filesInFolder int
+	for _, fileInfo := range filesInfos {
+		if (!fileInfo.IsDir()) {
+			filesInFolder++
+		}
+	}
+
 	ch := make(chan fileWordsEntry)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
-		for i:=0; i<len(filesInfos); i++ {
+		for i:=0; i<filesInFolder; i++ {
 			fileWordsEntry := <-ch
 			err := iim.AttachWeightedWords(fileWordsEntry.Source, fileWordsEntry.CountedWords) //слушаем канал и добавляем в общий индекс посчитанные слова
 			die(err)
@@ -87,7 +94,9 @@ func indexFilesInFolder(searchingfolder string, iim interfaces.InvertedIndexMode
 				words, err := wordsInFile(searchingfolder + "/" + f.Name()) //разбиваем файл по словам
 				die(err)
 				countedWords := interfaces.CountWords(words)      //считаем, сколько раз слово появилось в файле
-				ch <- fileWordsEntry{f.Name(), countedWords} //пишем в канал источник и карту посчитанных слов
+				countedAndStemmed := interfaces.StemCountedWords(countedWords)
+
+				ch <- fileWordsEntry{f.Name(), countedAndStemmed} //пишем в канал источник и карту посчитанных слов
 			}
 		}(fileInfo)
 	}
@@ -105,11 +114,13 @@ func wordsInFile(path string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanWords)
-	words := make([]string, 0)
+
+	words := []string{}
 	for scanner.Scan() {
-		words = append(words, strings.ToLower(scanner.Text()))
+		cleanedWords := interfaces.WordsInString(scanner.Text())
+		words = append(words, cleanedWords...)
 	}
+
 	return words, nil
 }
 

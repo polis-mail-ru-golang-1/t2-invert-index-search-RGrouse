@@ -1,6 +1,10 @@
 package interfaces
 
-import "github.com/rs/zerolog/log"
+import (
+	"github.com/reiver/go-porterstemmer"
+	"github.com/rs/zerolog/log"
+	"strings"
+)
 
 type InvertedIndexModel interface {
 	AttachWeightedWords(source string, weightedWords map[string]int) error
@@ -33,4 +37,22 @@ func CountWords(words []string) map[string]int {
 	}
 
 	return m
+}
+
+func WordsInString(str string) []string{
+	return strings.FieldsFunc(strings.ToLower(str), func(r rune) bool {
+		return (r < 48 || r > 57) && (r < 97 || r > 122) && r != 45
+	})
+}
+
+func StemCountedWords(words map[string]int) map[string]int {
+	stemmed := map[string]int{}
+	for k, v:= range words {
+		stemmed[StemWord(k)] = v
+	}
+	return stemmed
+}
+
+func StemWord(str string) string {
+	return porterstemmer.StemString(str)
 }

@@ -4,7 +4,6 @@ import (
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/interfaces"
 	"github.com/rs/zerolog/log"
 	"sort"
-	"strings"
 )
 
 type MapModel struct {
@@ -35,11 +34,15 @@ func (ii MapModel) AttachWeightedWords(src string, weightedWords map[string]int)
 }
 
 func (ii MapModel) SearchByString(str string) ([]interfaces.SearchResultEntry, error) {
-	words := strings.Split(str, " ")
+	words := interfaces.WordsInString(str)
 	return ii.SearchByWords(words)
 }
 
 func (ii MapModel) SearchByWords(words []string) ([]interfaces.SearchResultEntry, error) {
+	for i, _ := range words {
+		words[i] = interfaces.StemWord(words[i])
+	}
+
 	resultmap := make(map[string]int)
 
 	for _, word := range words {
