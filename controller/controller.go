@@ -6,7 +6,6 @@ import (
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/view"
 	"github.com/rs/zerolog/log"
 	"net/http"
-	"strings"
 )
 
 type Controller struct {
@@ -58,7 +57,10 @@ func (c Controller) AddToIndexHandler(w http.ResponseWriter, r *http.Request) {
 		} else if (source==""){
 			c.checkTemplateExec(c.view.AddToIndexPopup(false,"Название источника не должно быть пустым", w), w, r)
 		} else {
-			strs := strings.Split(text, " ")
+			strs := interfaces.WordsInString(text)
+			for i, _ := range strs {
+				strs[i]=interfaces.StemWord(strs[i])
+			}
 			weighted := interfaces.CountWords(strs)
 			err := c.model.AttachWeightedWords(source, weighted)
 			if err!=nil{

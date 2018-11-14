@@ -2,6 +2,7 @@ package view
 
 import (
 	"github.com/polis-mail-ru-golang-1/t2-invert-index-search-RGrouse/model/interfaces"
+	"github.com/rs/zerolog/log"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -21,6 +22,7 @@ func New() (View, error) {
 	var allFiles []string
 	files, err := ioutil.ReadDir("./view/templates")
 	if err != nil {
+		log.Error().Msg("Ошибка при чтении директории с шаблонами")
 		return v, err
 	}
 	for _, file := range files {
@@ -32,6 +34,7 @@ func New() (View, error) {
 
 	templates, err := template.ParseFiles(allFiles...)
 	if err != nil {
+		log.Error().Msg("Ошибка при парсинге шаблонов")
 		return v, err
 	}
 

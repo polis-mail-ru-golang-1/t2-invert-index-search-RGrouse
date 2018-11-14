@@ -30,6 +30,7 @@ func (ii MapModel) AttachWeightedWords(src string, weightedWords map[string]int)
 		ii.indexmap[str] = entries
 	}
 	log.Info().Msg("Добавили в индекс слова из "+ src)
+
 	return nil
 }
 
@@ -55,6 +56,7 @@ func (ii MapModel) SearchByWords(words []string) ([]interfaces.SearchResultEntry
 			resultmap[entry.Source]+=entry.Weight
 		}
 	}
+
 	sortedResult := sortResult(resultmap)
 	log.Info().Msgf("Поиск по словам %v, результат %v", words, sortedResult)
 	return sortedResult, nil

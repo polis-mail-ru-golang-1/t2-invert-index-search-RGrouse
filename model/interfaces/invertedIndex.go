@@ -45,14 +45,6 @@ func WordsInString(str string) []string{
 	})
 }
 
-func StemCountedWords(words map[string]int) map[string]int {
-	stemmed := map[string]int{}
-	for k, v:= range words {
-		stemmed[StemWord(k)] = v
-	}
-	return stemmed
-}
-
 func StemWord(str string) string {
 	return porterstemmer.StemString(str)
 }

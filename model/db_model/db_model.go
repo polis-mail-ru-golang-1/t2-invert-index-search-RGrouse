@@ -39,21 +39,59 @@ type Index struct {
 func (m DBModel) AttachWeightedWords(src string, weightedWords map[string]int) error {
 	srcEntry, err := m.putSourceEntry(Source{Source: src})
 	if err != nil {
+		log.Error().Msg("Ошибка при добавлении источника в таблицу Sources")
 		return err
 	}
-	for word, weight := range weightedWords {
-		word, err := m.putWordEntry(Word{Word: word})
-		if err != nil {
-			return err
-		}
-		err = m.insertIndexEntry(Index{Word_id: word.Id,
-			Source_id: srcEntry.Id,
-			Weight:    weight})
-		if err != nil {
-			return err
+
+	words := []string{}
+	for word, _ := range weightedWords {
+		words = append(words, word)
+	}
+	matchedWords, err := m.selectMatchedWords(words)
+	if err != nil {
+		log.Error().Msg("Ошибка при выборке подходящих слов")
+		return err
+	}
+
+	matchedWordsMap := map[string]int{}
+	for i := range matchedWords  {
+		matchedWordsMap[matchedWords[i].Word]=matchedWords[i].Id
+	}
+
+	unpresentWords := []Word{}
+	for word, _ := range weightedWords {
+		if _, exist := matchedWordsMap[word]; !exist {
+			unpresentWords = append(unpresentWords, Word{Word:word})
 		}
 	}
+
+	insertedWords, err := m.inssertWordsEntrys(unpresentWords)
+	if err != nil {
+		log.Error().Msg("Ошибка при добавлении слов в таблицу Words")
+		return err
+	}
+
+	for i := range insertedWords {
+		matchedWordsMap[insertedWords[i].Word]=insertedWords[i].Id
+	}
+
+	indexEntrys := []Index{}
+	for word, weight := range weightedWords {
+		indexEntrys = append(indexEntrys,
+			Index{
+			Word_id: matchedWordsMap[word],
+			Source_id: srcEntry.Id,
+			Weight:    weight,
+		})
+	}
+	err = m.insertIndexEntrys(indexEntrys)
+	if err != nil {
+		log.Error().Msg("Ошибка при добавлении данных в таблицу Index")
+		return err
+	}
+
 	log.Info().Msg("Добавили в индекс слова из " + src)
+
 	return nil
 }
 
@@ -90,6 +128,7 @@ func (m DBModel) SearchByWords(words []string) ([]interfaces.SearchResultEntry, 
 		Select(&qresult)
 
 	if err!=nil{
+		log.Error().Msg("Ошибка при поиске")
 		return qresult, err
 	}
 	log.Info().Msgf("Поиск по словам %v, результат %v", words, qresult)
@@ -109,20 +148,24 @@ func (m DBModel) putSourceEntry(source Source) (Source, error) {
 	return source, nil
 }
 
-func (m DBModel) putWordEntry(word Word) (Word, error){
-	created, err := m.pg.Model(&word).
-		Where("word = ?word").
-		SelectOrInsert(&word)
+func (m DBModel) selectMatchedWords(words []string) ([]Word, error){
+	matchedWords := []Word{}
+	err := m.pg.Model().
+		Column("words.id", "words.word").
+		Table("words").
+		Where("words.word IN (?)", pg.In(words)).
+		Select(&matchedWords)
+	return matchedWords, err
+}
+func (m DBModel) inssertWordsEntrys(words []Word) ([]Word, error){
+	err := m.pg.Insert(&words)
 	if err!=nil{
-		return word, err
+		return words, err
 	}
-	if(created){
-		log.Info().Msg("Добавили в индекс слово "+ word.Word)
-	}
-	return word, nil
+	return words, nil
 }
 
-func (m DBModel) insertIndexEntry(index Index) error {
+func (m DBModel) insertIndexEntrys(index []Index) error {
 	err := m.pg.Insert(&index)
 	return err
 }

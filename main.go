@@ -64,22 +64,25 @@ func indexFilesInFolder(searchingfolder string, iim interfaces.InvertedIndexMode
 		CountedWords map[string]int
 	}
 
-	var filesInFolder int
+	var filesCountInFolder int
 	for _, fileInfo := range filesInfos {
 		if (!fileInfo.IsDir()) {
-			filesInFolder++
+			filesCountInFolder++
 		}
 	}
 
-	ch := make(chan fileWordsEntry)
+	ch := make(chan fileWordsEntry, filesCountInFolder)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
-		for i:=0; i<filesInFolder; i++ {
+		for i:=0; i< filesCountInFolder; i++ {
 			fileWordsEntry := <-ch
 			err := iim.AttachWeightedWords(fileWordsEntry.Source, fileWordsEntry.CountedWords) //слушаем канал и добавляем в общий индекс посчитанные слова
-			die(err)
+			if(err!=nil) {
+				log.Error().Msgf("Ошибка при добавлении слов в индекс %v", err)
+				return
+			}
 		}
 		wg.Done()
 	}()
@@ -92,11 +95,13 @@ func indexFilesInFolder(searchingfolder string, iim interfaces.InvertedIndexMode
 
 			if (!f.IsDir()) {
 				words, err := wordsInFile(searchingfolder + "/" + f.Name()) //разбиваем файл по словам
-				die(err)
-				countedWords := interfaces.CountWords(words)      //считаем, сколько раз слово появилось в файле
-				countedAndStemmed := interfaces.StemCountedWords(countedWords)
+				if(err!=nil) {
+					log.Error().Msgf("Ошибка при обработке файла %v", err)
+					return
+				}
+				weighted := interfaces.CountWords(words)      //считаем, сколько раз слово появилось в файле
 
-				ch <- fileWordsEntry{f.Name(), countedAndStemmed} //пишем в канал источник и карту посчитанных слов
+				ch <- fileWordsEntry{f.Name(), weighted} //пишем в канал источник и карту посчитанных слов
 			}
 		}(fileInfo)
 	}
@@ -119,6 +124,10 @@ func wordsInFile(path string) ([]string, error) {
 	for scanner.Scan() {
 		cleanedWords := interfaces.WordsInString(scanner.Text())
 		words = append(words, cleanedWords...)
+	}
+
+	for i, _ := range words {
+		words[i]=interfaces.StemWord(words[i])
 	}
 
 	return words, nil
