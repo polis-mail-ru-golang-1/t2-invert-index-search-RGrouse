@@ -1,4 +1,4 @@
-package invertedindex
+package map_model
 
 import (
 	"bytes"
